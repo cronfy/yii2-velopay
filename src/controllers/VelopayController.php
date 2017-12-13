@@ -95,6 +95,8 @@ abstract class VelopayController extends Controller
                 return $this->render('thankyou.html.twig');
             case $gateway::STATUS_PENDING:
                 return $this->render('pending.html.twig');
+            case $gateway::STATUS_ERROR:
+                throw new \Exception("Gateway error");
             default:
                 throw new \Exception("Unexpected status: " . $gateway->status);
         }

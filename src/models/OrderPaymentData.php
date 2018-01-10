@@ -29,6 +29,11 @@ class OrderPaymentData extends ActiveRecord implements OrderPaymentDataInterface
         ];
     }
 
+    public function optimisticLock()
+    {
+        return 'version';
+    }
+
     // автор предложил решение проще: https://github.com/paulzi/yii2-json-behavior#how-to
     public function getDirtyAttributes($names = null)
     {

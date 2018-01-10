@@ -16,9 +16,6 @@ use yii\base\BaseObject;
 
 class Invoice extends BaseObject implements InvoiceInterface
 {
-    /**
-     * @var Order
-     */
     public $order;
 
     /**

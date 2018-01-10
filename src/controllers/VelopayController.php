@@ -8,10 +8,11 @@
 
 namespace cronfy\yii2Velopay\controllers;
 
+use cronfy\yii2Velopay\models\Invoice;
 use cronfy\yii2Velopay\models\OrderPaymentData;
 use cronfy\velopay\gateways\AbstractGateway;
 use cronfy\velopay\Helper;
-use Yii;
+use yii\helpers\Json;
 use yii\helpers\Url;
 use yii\web\Controller;
 use yii\web\NotFoundHttpException;
@@ -40,7 +41,7 @@ abstract class VelopayController extends Controller
         }
 
         $gateway = $this->getGatewayByPaymentMethod($method);
-        $invoice = $this->getInvoiceByOrder($order, $gateway);
+        $invoice = $this->getInvoice($order, $gateway);
         $gateway->setInvoice($invoice);
         $gateway->returnUrl = Url::toRoute(['velopay/process', 'method' => $method, 'order_id' => $order_id], true);
 
@@ -83,6 +84,7 @@ abstract class VelopayController extends Controller
 
         switch ($gateway->status) {
             case $gateway::STATUS_CANCELED:
+                $gateway->destroySession();
                 return $this->render('canceled.html.twig');
             case $gateway::STATUS_SUGGEST_USER_REDIRECT:
                 Helper::redirect($gateway->statusDetails);
@@ -92,6 +94,7 @@ abstract class VelopayController extends Controller
                     'sum' => $invoice->getAmountValue(),
                     'paymentFqid' => $gateway->statusDetails['paymentFqid'],
                 ]);
+                $gateway->destroySession();
                 return $this->render('thankyou.html.twig');
             case $gateway::STATUS_PENDING:
                 return $this->render('pending.html.twig');
@@ -103,11 +106,37 @@ abstract class VelopayController extends Controller
     }
 
     abstract protected function addPaymentToOrder($order, $data);
-    
-    abstract protected function getInvoiceByOrder($order, $gateway);
+
+    /**
+     * @param $order
+     * @return Invoice
+     */
+    abstract protected function getInvoiceByOrder($order);
+
+    protected function getInvoice($order, $gateway) {
+        $invoice = $this->getInvoiceByOrder($order);
+
+        $sidData = $this->getInvoiceOrderPaymentDataSidData($invoice);
+        if (isset($sidData['gate'])) {
+            throw new \Exception("Invoice should not return 'gate' in sid data");
+        }
+
+        $sidData['gate'] = $gateway->getSid();
+        ksort($sidData); // для единообразия, иначе не сможем проверять уникальность
+        $sid = Json::encode($sidData);
+
+        $invoice->setStorage(OrderPaymentData::findOne(['sid' => $sid]) ?: new OrderPaymentData(['sid' => $sid]));
+        return $invoice;
+    }
 
     abstract protected function getGatewayByPaymentMethod($method);
 
     abstract protected function getGateway($name);
+
+    /**
+     * @param $invoice Invoice
+     * @return array
+     */
+    abstract protected function getInvoiceOrderPaymentDataSidData($invoice);
 
 }

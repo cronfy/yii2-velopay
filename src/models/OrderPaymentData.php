@@ -15,6 +15,9 @@ use paulzi\jsonBehavior\JsonField;
 use yii\behaviors\TimestampBehavior;
 use yii\db\ActiveRecord;
 
+/**
+ * @property $sid string
+ */
 class OrderPaymentData extends ActiveRecord implements OrderPaymentDataInterface
 {
     public function behaviors() {

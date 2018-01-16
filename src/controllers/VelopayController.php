@@ -12,8 +12,10 @@ use cronfy\yii2Velopay\models\Invoice;
 use cronfy\yii2Velopay\models\OrderPaymentData;
 use cronfy\velopay\gateways\AbstractGateway;
 use cronfy\velopay\Helper;
+use Yii;
 use yii\helpers\Json;
 use yii\helpers\Url;
+use yii\helpers\VarDumper;
 use yii\web\Controller;
 use yii\web\NotFoundHttpException;
 
@@ -65,6 +67,12 @@ abstract class VelopayController extends Controller
 
     public function actionProcess($method, $order_id) {
         return $this->process($method, $order_id, 'process');
+    }
+
+    public function actionNotification() {
+        Yii::info('Notification GET ' . VarDumper::dumpAsString(Yii::$app->request->get()));
+        Yii::info('Notification POST ' . VarDumper::dumpAsString(Yii::$app->request->post()));
+        Yii::info('Notification BODY ' . Yii::$app->request->getRawBody());
     }
 
     /**

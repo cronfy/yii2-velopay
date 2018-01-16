@@ -70,9 +70,10 @@ abstract class VelopayController extends Controller
     }
 
     public function actionNotification() {
-        Yii::info('Notification GET ' . VarDumper::dumpAsString(Yii::$app->request->get()));
-        Yii::info('Notification POST ' . VarDumper::dumpAsString(Yii::$app->request->post()));
-        Yii::info('Notification BODY ' . Yii::$app->request->getRawBody());
+        Yii::info('Notification GET ' . VarDumper::dumpAsString(Yii::$app->request->get()), 'app/velopay');
+        Yii::info('Notification POST ' . VarDumper::dumpAsString(Yii::$app->request->post()), 'app/velopay');
+        Yii::info('Notification BODY ' . Yii::$app->request->getRawBody(), 'app/velopay');
+        die();
     }
 
     /**

@@ -13,6 +13,7 @@ use cronfy\yii2Velopay\models\OrderPaymentData;
 use cronfy\velopay\gateways\AbstractGateway;
 use cronfy\velopay\Helper;
 use Yii;
+use yii\base\Action;
 use yii\helpers\Json;
 use yii\helpers\Url;
 use yii\helpers\VarDumper;
@@ -23,7 +24,20 @@ abstract class VelopayController extends Controller
 {
     abstract protected function getOrderById($order_id);
     abstract protected function getOrderUrl($order);
-    
+
+    /**
+     * @inheritdoc
+     * @param Action $action the action to be executed.
+     */
+    public function beforeAction($action)
+    {
+        if ($action->id == 'notification') {
+            $this->enableCsrfValidation = false;
+        }
+
+        return parent::beforeAction($action);
+    }
+
     protected function process($method, $order_id, $gatewayMethod) {
         try {
             $order = $this->getOrderById($order_id);

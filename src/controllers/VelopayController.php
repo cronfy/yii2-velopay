@@ -56,8 +56,11 @@ abstract class VelopayController extends Controller
             return $this->redirect($this->getOrderUrl($order));
         }
 
+        $invoice = $this->getInvoice($order);
+
         $gateway = $this->getGatewayByPaymentMethod($method);
-        $invoice = $this->getInvoice($order, $gateway);
+        $storageSid = $this->getStorageSid($invoice, $gateway);
+        $gateway->setStorage(OrderPaymentData::findOne(['sid' => $storageSid]) ?: new OrderPaymentData(['sid' => $storageSid]));
         $gateway->setInvoice($invoice);
         $gateway->returnUrl = Url::toRoute(['velopay/process', 'method' => $method, 'order_id' => $order_id], true);
 
@@ -100,9 +103,9 @@ abstract class VelopayController extends Controller
         /** @var Invoice $invoice */
         $invoice = $gateway->getInvoice();
 
-        $storage = $invoice->getStorage();
+        $storage = $gateway->getStorage();
         if (!$storage->getIsDeleted() && $storage->requiresSave()) {
-            $invoice->getStorage()->ensureSave();
+            $gateway->getStorage()->ensureSave();
         }
 
         switch ($gateway->status) {
@@ -136,10 +139,14 @@ abstract class VelopayController extends Controller
      */
     abstract protected function getInvoiceByOrder($order);
 
-    protected function getInvoice($order, $gateway) {
+    protected function getInvoice($order) {
         $invoice = $this->getInvoiceByOrder($order);
+        return $invoice;
+    }
 
+    protected function getStorageSid($invoice, $gateway) {
         $sidData = $this->getInvoiceOrderPaymentDataSidData($invoice);
+
         if (isset($sidData['gate'])) {
             throw new \Exception("Invoice should not return 'gate' in sid data");
         }
@@ -148,8 +155,7 @@ abstract class VelopayController extends Controller
         ksort($sidData); // для единообразия, иначе не сможем проверять уникальность
         $sid = Json::encode($sidData);
 
-        $invoice->setStorage(OrderPaymentData::findOne(['sid' => $sid]) ?: new OrderPaymentData(['sid' => $sid]));
-        return $invoice;
+        return $sid;
     }
 
     abstract protected function getGatewayByPaymentMethod($method);

@@ -22,6 +22,8 @@ use yii\web\NotFoundHttpException;
 
 abstract class VelopayController extends Controller
 {
+    use VelopayControllerTrait;
+
     abstract protected function getOrderById($order_id);
     abstract protected function getOrderUrl($order);
 
@@ -90,6 +92,24 @@ abstract class VelopayController extends Controller
         Yii::info('Notification GET ' . VarDumper::dumpAsString(Yii::$app->request->get()), 'app/velopay');
         Yii::info('Notification POST ' . VarDumper::dumpAsString(Yii::$app->request->post()), 'app/velopay');
         Yii::info('Notification BODY ' . Yii::$app->request->getRawBody(), 'app/velopay');
+
+        $data = Json::decode(Yii::$app->request->getRawBody());
+
+        if ($data['type'] !== 'notification') throw new \Exception("Not a notification");
+
+        $uid = 'Notification process';
+
+        switch ($data['event']) {
+            case 'payment.waiting_for_capture':
+                $payment_id = $data['object']['id'];
+                if (!$orderPaymentData = OrderPaymentData::findOne(['gateway_sid' => $payment_id])) {
+                    throw new \Exception("Got notification, but transaction not found: " . $payment_id);
+                }
+                $this->processTransactionByOrderPaymentData($orderPaymentData, $uid, false);
+                break;
+            default:
+                throw new \Exception("Got notification, but event is unknown: " . $data['event']);
+        }
         die();
     }
 
@@ -158,6 +178,10 @@ abstract class VelopayController extends Controller
         return $sid;
     }
 
+    /**
+     * @param $method
+     * @return AbstractGateway
+     */
     abstract protected function getGatewayByPaymentMethod($method);
 
     abstract protected function getGateway($name);

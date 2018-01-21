@@ -17,6 +17,7 @@ use yii\db\ActiveRecord;
 
 /**
  * @property $sid string
+ * @property $gateway_sid string
  */
 class OrderPaymentData extends ActiveRecord implements OrderPaymentDataInterface
 {
@@ -123,5 +124,15 @@ class OrderPaymentData extends ActiveRecord implements OrderPaymentDataInterface
         } else {
             $this->data->set($value);
         }
+    }
+
+    public function setGatewaySid($sid)
+    {
+        $this->gateway_sid = $sid;
+    }
+
+    public function getGatewaySid()
+    {
+        return $this->gateway_sid;
     }
 }

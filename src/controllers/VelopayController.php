@@ -41,6 +41,7 @@ abstract class VelopayController extends Controller
     }
 
     protected function process($method, $order_id, $gatewayMethod) {
+        throw new \Exception("deprecated");
         try {
             $order = $this->getOrderById($order_id);
             if (!$order) {
@@ -80,6 +81,23 @@ abstract class VelopayController extends Controller
         return $this->afterGatewayResponse($gateway, $order);
     }
 
+    protected function legacyProcess($method, $order_id) {
+        try {
+            $order = $this->getOrderById($order_id);
+            if (!$order) {
+                throw new \Exception('no order');
+            }
+        } catch (\Exception $e) {
+            if (!YII_DEBUG) {
+                sleep(5); // защита от перебора
+                throw new NotFoundHttpException("Заказ не найден");
+            }
+            throw $e;
+        }
+
+        return $this->redirect($this->getOrderUrl($order));
+    }
+
     public function actionStart($method, $order_id) {
         try {
             $order = $this->getOrderById($order_id);
@@ -114,6 +132,10 @@ abstract class VelopayController extends Controller
     }
 
     public function actionProcess() {
+        if ($order_id = Yii::$app->request->get('order_id')) {
+            return $this->legacyProcess(Yii::$app->request->get('method'), $order_id);
+        }
+
         if (!$invoiceSid = Yii::$app->request->get('invoice_id')) {
             throw new BadRequestHttpException();
         }

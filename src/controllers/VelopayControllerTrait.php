@@ -9,6 +9,8 @@
 namespace cronfy\yii2Velopay\controllers;
 
 
+use cronfy\velopay\gateways\AbstractGateway;
+use cronfy\yii2Velopay\models\Invoice;
 use Yii;
 
 trait VelopayControllerTrait
@@ -38,6 +40,32 @@ trait VelopayControllerTrait
             $gateway->process();
 
             return $this->afterGatewayResponse($gateway, $order, $logUid);
+        } else {
+            Yii::info("$logUid Fake process", 'app/velopay');
+            return false;
+        }
+    }
+
+    /**
+     * @param $invoice Invoice
+     * @param $logUid
+     * @param bool $realProcess
+     * @return bool
+     */
+    protected function processTransactionByInvoice($invoice, $logUid, $realProcess = true) {
+
+        Yii::info("$logUid Processing invoice " . $invoice->id . ' order ' . $invoice->order->id, 'app/velopay');
+
+        $gateway = $this->getGateway($invoice->getGatewaySid());
+        /** @var $gateway AbstractGateway */
+        $gateway->setInvoice($invoice);
+
+        Yii::info("$logUid Info: gateway " . $gateway->getSid(), 'app/velopay');
+
+        if ($realProcess) {
+            $gateway->process();
+
+            return $this->afterGatewayResponse($gateway, $logUid);
         } else {
             Yii::info("$logUid Fake process", 'app/velopay');
             return false;

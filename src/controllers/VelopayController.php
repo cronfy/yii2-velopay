@@ -9,7 +9,6 @@
 namespace cronfy\yii2Velopay\controllers;
 
 use cronfy\yii2Velopay\models\Invoice;
-use cronfy\yii2Velopay\models\OrderPaymentData;
 use cronfy\velopay\gateways\AbstractGateway;
 use cronfy\velopay\Helper;
 use Yii;
@@ -17,6 +16,7 @@ use yii\base\Action;
 use yii\helpers\Json;
 use yii\helpers\Url;
 use yii\helpers\VarDumper;
+use yii\web\BadRequestHttpException;
 use yii\web\Controller;
 use yii\web\NotFoundHttpException;
 
@@ -81,11 +81,63 @@ abstract class VelopayController extends Controller
     }
 
     public function actionStart($method, $order_id) {
-        return $this->process($method, $order_id, 'start');
+        try {
+            $order = $this->getOrderById($order_id);
+            if (!$order) {
+                throw new \Exception('no order');
+            }
+        } catch (\Exception $e) {
+            if (!YII_DEBUG) {
+                sleep(5); // защита от перебора
+                throw new NotFoundHttpException("Заказ не найден");
+            }
+            throw $e;
+        }
+
+        if ($order->paid_status === $order::PAID_STATUS_YES) {
+            return $this->redirect($this->getOrderUrl($order));
+        }
+
+        $gateway = $this->getGatewayByPaymentMethod($method);
+
+        $invoice = $this->createInvoiceByOrder($order);
+        $invoice->setGatewaySid($gateway->getSid());
+        $invoice->ensureSave();
+        $invoice->refresh(); // иначе срабатывает optimistic lock при последующем сохранении в afterGatewayResponse()
+
+        $gateway->setInvoice($invoice);
+        $gateway->setReturnUrl(Url::toRoute(['velopay/process', 'invoice_id' => $invoice->getExternalSid()], true));
+
+        $gateway->start();
+
+        return $this->afterGatewayResponse($gateway);
     }
 
-    public function actionProcess($method, $order_id) {
-        return $this->process($method, $order_id, 'process');
+    public function actionProcess() {
+        if (!$invoiceSid = Yii::$app->request->get('invoice_id')) {
+            throw new BadRequestHttpException();
+        }
+
+        try {
+            $invoice = $this->getInvoiceByExternalSid($invoiceSid);
+            if (!$invoice) {
+                throw new \Exception('no invoice');
+            }
+        } catch (\Exception $e) {
+            if (!YII_DEBUG) {
+                sleep(5); // защита от перебора
+                throw new NotFoundHttpException("Счет не найден");
+            }
+            throw $e;
+        }
+
+        $gateway = $this->getGateway($invoice->getGatewaySid());
+
+        $gateway->setInvoice($invoice);
+
+        $gateway->process();
+
+        return $this->afterGatewayResponse($gateway);
     }
 
     public function actionNotification() {
@@ -115,32 +167,24 @@ abstract class VelopayController extends Controller
 
     /**
      * @param $gateway AbstractGateway
-     * @param $order Order
      * @return string
      * @throws \Exception
      */
-    protected function afterGatewayResponse($gateway, $order) {
+    protected function afterGatewayResponse($gateway) {
         /** @var Invoice $invoice */
         $invoice = $gateway->getInvoice();
-
-        $storage = $gateway->getStorage();
-        if (!$storage->getIsDeleted() && $storage->requiresSave()) {
-            $gateway->getStorage()->ensureSave();
-        }
+        $invoice->ensureSave();
 
         switch ($gateway->status) {
             case $gateway::STATUS_CANCELED:
-                $gateway->destroySession();
+                $invoice->ensureDelete();
                 return $this->render('canceled.html.twig');
             case $gateway::STATUS_SUGGEST_USER_REDIRECT:
                 Helper::redirect($gateway->statusDetails);
                 break;
             case $gateway::STATUS_PAID:
-                $this->addPaymentToOrder($order, [
-                    'sum' => $invoice->getAmountValue(),
-                    'paymentFqid' => $gateway->statusDetails['paymentFqid'],
-                ]);
-                $gateway->destroySession();
+                $this->registerPayment($invoice, $gateway->statusDetails['paymentFqid']);
+                $invoice->ensureDelete();
                 return $this->render('thankyou.html.twig');
             case $gateway::STATUS_PENDING:
                 return $this->render('pending.html.twig');
@@ -151,6 +195,8 @@ abstract class VelopayController extends Controller
         }
     }
 
+    abstract protected function registerPayment($invoice, $paymentFqid);
+
     abstract protected function addPaymentToOrder($order, $data);
 
     /**
@@ -159,10 +205,17 @@ abstract class VelopayController extends Controller
      */
     abstract protected function getInvoiceByOrder($order);
 
-    protected function getInvoice($order) {
-        $invoice = $this->getInvoiceByOrder($order);
-        return $invoice;
-    }
+    /**
+     * @param $sid string
+     * @return Invoice
+     */
+    abstract protected function getInvoiceByExternalSid($sid);
+
+    /**
+     * @param $order
+     * @return Invoice
+     */
+    abstract protected function createInvoiceByOrder($order);
 
     protected function getStorageSid($invoice, $gateway) {
         $sidData = $this->getInvoiceOrderPaymentDataSidData($invoice);
@@ -184,6 +237,10 @@ abstract class VelopayController extends Controller
      */
     abstract protected function getGatewayByPaymentMethod($method);
 
+    /**
+     * @param $name
+     * @return AbstractGateway
+     */
     abstract protected function getGateway($name);
 
     /**

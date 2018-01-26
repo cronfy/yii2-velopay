@@ -135,7 +135,7 @@ abstract class Invoice extends ActiveRecord implements InvoiceInterface
 
     public function setAmount(Money $value)
     {
-        $this->invoiceData['value'] = $value->getAmount() / 100;
+        $this->invoiceData['amount'] = $value->getAmount() / 100;
         $this->invoiceData['currency'] = (string) $value->getCurrency();
     }
 
@@ -144,7 +144,7 @@ abstract class Invoice extends ActiveRecord implements InvoiceInterface
     }
 
     public function getAmountValue() {
-        return $this->invoiceData['value'];
+        return $this->invoiceData['amount'];
     }
 
     public function isAmountEqualsTo($value, $currency) {

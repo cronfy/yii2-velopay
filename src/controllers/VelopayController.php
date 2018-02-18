@@ -39,48 +39,7 @@ abstract class VelopayController extends Controller
 
         return parent::beforeAction($action);
     }
-
-    protected function process($method, $order_id, $gatewayMethod) {
-        throw new \Exception("deprecated");
-        try {
-            $order = $this->getOrderById($order_id);
-            if (!$order) {
-                throw new \Exception('no order');
-            }
-        } catch (\Exception $e) {
-            if (!YII_DEBUG) {
-                sleep(5); // защита от перебора
-                throw new NotFoundHttpException("Заказ не найден");
-            }
-            throw $e;
-        }
-
-        if ($order->paid_status === $order::PAID_STATUS_YES) {
-            return $this->redirect($this->getOrderUrl($order));
-        }
-
-        $invoice = $this->getInvoice($order);
-
-        $gateway = $this->getGatewayByPaymentMethod($method);
-        $storageSid = $this->getStorageSid($invoice, $gateway);
-        $gateway->setStorage(OrderPaymentData::findOne(['sid' => $storageSid]) ?: new OrderPaymentData(['sid' => $storageSid]));
-        $gateway->setInvoice($invoice);
-        $gateway->returnUrl = Url::toRoute(['velopay/process', 'method' => $method, 'order_id' => $order_id], true);
-
-        switch ($gatewayMethod) {
-            case 'start':
-                $gateway->start();
-                break;
-            case 'process':
-                $gateway->process();
-                break;
-            default:
-                throw new \Exception("Unknown gateway method");
-        }
-
-        return $this->afterGatewayResponse($gateway, $order);
-    }
-
+    
     protected function legacyProcess($method, $order_id) {
         try {
             $order = $this->getOrderById($order_id);

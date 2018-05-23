@@ -6,9 +6,8 @@
  * Time: 13:38
  */
 
-namespace cronfy\yii2Velopay\models;
+namespace cronfy\yii2Velopay\common\models;
 
-use cronfy\experience\yii2\exceptions\EnsureSaveException;
 use cronfy\velopay\InvoiceInterface;
 use Money\Currency;
 use Money\Money;
@@ -19,10 +18,12 @@ use yii\db\ActiveRecord;
 
 /**
  * @property $id integer
- * @property $gateway_transaction_sid string
+ * @property $gateway_invoice_sid string
+ * @property $gateway_sid string
  * @property $invoiceData JsonField
+ * @property $gatewayData JsonField
  */
-abstract class Invoice extends ActiveRecord implements InvoiceInterface
+class Invoice extends ActiveRecord implements InvoiceInterface
 {
     public static function tableName()
     {
@@ -32,28 +33,36 @@ abstract class Invoice extends ActiveRecord implements InvoiceInterface
     public function behaviors() {
         return [
             [
-                'class' => JsonBehavior::className(),
+                'class' => JsonBehavior::class,
                 'attributes' => ['gatewayData'],
             ],
             [
-                'class' => JsonBehavior::className(),
+                'class' => JsonBehavior::class,
                 'attributes' => ['invoiceData'],
             ],
             [
-                'class' => TimestampBehavior::className(),
+                'class' => TimestampBehavior::class,
             ],
         ];
     }
 
+    public function optimisticLock()
+    {
+        return 'version';
+    }
+
+
+
+
     public function ensureSave() {
         if (!$this->save()) {
-            throw new EnsureSaveException("Failed to save model");
+            throw new \Exception("Failed to save model");
         }
     }
 
     public function ensureDelete() {
-        if (false === parent::delete()) {
-            throw new EnsureSaveException();
+        if (false === $this->delete()) {
+            throw new \Exception();
         }
         $this->_deleted = true;
     }
@@ -76,19 +85,9 @@ abstract class Invoice extends ActiveRecord implements InvoiceInterface
         }
     }
 
-    public function setGatewayTransactionSid($sid)
+    public function setGatewayInvoiceSid($sid)
     {
-        $this->gateway_transaction_sid = $sid;
-    }
-
-    public function getGatewayTransactionSid()
-    {
-        return $this->gateway_transaction_sid;
-    }
-
-    public function optimisticLock()
-    {
-        return 'version';
+        $this->gateway_invoice_sid = $sid;
     }
 
     //  https://github.com/paulzi/yii2-json-behavior#how-to
@@ -121,16 +120,6 @@ abstract class Invoice extends ActiveRecord implements InvoiceInterface
             }
         }
         return $result;
-    }
-
-    public function setGatewaySid($value)
-    {
-        $this->invoiceData['gatewaySid'] = $value;
-    }
-
-    public function getGatewaySid()
-    {
-        return $this->invoiceData['gatewaySid'];
     }
 
     public function setAmount(Money $value)

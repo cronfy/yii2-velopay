@@ -46,6 +46,10 @@ class VelopayController extends Controller {
         return $this->module->businessLogic->getOrderRoute($order);
     }
 
+    protected function getInvoiceById($invoiceId) {
+        return $this->module->businessLogic->getInvoiceById($invoiceId);
+    }
+
     /**
      * @param string $methodSid
      * @return AbstractGateway
@@ -54,8 +58,24 @@ class VelopayController extends Controller {
         return $this->module->businessLogic->getGatewayByPaymentMethod($methodSid);
     }
 
+    /**
+     * @param string $gatewaySid
+     * @return AbstractGateway
+     */
+    protected function getGatewayBySid($gatewaySid) {
+        return $this->module->businessLogic->getGatewayBySid($gatewaySid);
+    }
+
     protected function getGatewaySid($gateway) {
         return $this->module->businessLogic->getGatewaySid($gateway);
+    }
+
+    /**
+     * @param Invoice $invoice
+     * @return mixed
+     */
+    protected function registerPayment($invoice) {
+        return $this->module->businessLogic->registerPayment($invoice);
     }
 
     /**
@@ -99,6 +119,33 @@ class VelopayController extends Controller {
         return $this->afterGatewayResponse($gateway);
     }
 
+    public function actionProcess() {
+        if (!$invoiceId = Yii::$app->request->get('invoice_id')) {
+            throw new BadRequestHttpException();
+        }
+
+        try {
+            $invoice = $this->getInvoiceById($invoiceId);
+            if (!$invoice) {
+                throw new \Exception('no invoice');
+            }
+        } catch (\Exception $e) {
+            if (!YII_DEBUG) {
+                sleep(5); // защита от перебора
+                throw new NotFoundHttpException("Счет не найден");
+            }
+            throw $e;
+        }
+
+        $gateway = $this->getGatewayBySid($invoice->gateway_sid);
+
+        $gateway->setInvoice($invoice);
+
+        $gateway->process();
+
+        return $this->afterGatewayResponse($gateway);
+    }
+
     /**
      * @param $gateway AbstractGateway
      * @return string
@@ -117,7 +164,7 @@ class VelopayController extends Controller {
                 Helper::redirect($gateway->statusDetails);
                 break;
             case $gateway::STATUS_PAID:
-                $this->registerPayment($invoice, $gateway->statusDetails['paymentFqid']);
+                $this->registerPayment($invoice);
                 $invoice->ensureDelete();
                 return $this->render('thankyou.html.twig');
             case $gateway::STATUS_PENDING:
@@ -134,36 +181,6 @@ class VelopayController extends Controller {
 abstract class Wait {
 //    use VelopayControllerTrait;
 
-    public function actionProcess() {
-        if ($order_id = Yii::$app->request->get('order_id')) {
-            return $this->legacyProcess(Yii::$app->request->get('method'), $order_id);
-        }
-
-        if (!$invoiceSid = Yii::$app->request->get('invoice_id')) {
-            throw new BadRequestHttpException();
-        }
-
-        try {
-            $invoice = $this->getInvoiceByExternalSid($invoiceSid);
-            if (!$invoice) {
-                throw new \Exception('no invoice');
-            }
-        } catch (\Exception $e) {
-            if (!YII_DEBUG) {
-                sleep(5); // защита от перебора
-                throw new NotFoundHttpException("Счет не найден");
-            }
-            throw $e;
-        }
-
-        $gateway = $this->getGateway($invoice->getGatewaySid());
-
-        $gateway->setInvoice($invoice);
-
-        $gateway->process();
-
-        return $this->afterGatewayResponse($gateway);
-    }
 
     public function actionNotification() {
         Yii::info('Notification GET ' . VarDumper::dumpAsString(Yii::$app->request->get()), 'app/velopay');
@@ -189,60 +206,5 @@ abstract class Wait {
         }
         die();
     }
-
-
-    abstract protected function registerPayment($invoice, $paymentFqid);
-
-    abstract protected function addPaymentToOrder($order, $data);
-
-    /**
-     * @param $order
-     * @return Invoice
-     */
-    abstract protected function getInvoiceByOrder($order);
-
-    /**
-     * @param $sid string
-     * @return Invoice
-     */
-    abstract protected function getInvoiceByExternalSid($sid);
-
-    /**
-     * @param $order
-     * @return Invoice
-     */
-    abstract protected function createInvoiceByOrder($order);
-
-    protected function getStorageSid($invoice, $gateway) {
-        $sidData = $this->getInvoiceOrderPaymentDataSidData($invoice);
-
-        if (isset($sidData['gate'])) {
-            throw new \Exception("Invoice should not return 'gate' in sid data");
-        }
-
-        $sidData['gate'] = $gateway->getSid();
-        ksort($sidData); // для единообразия, иначе не сможем проверять уникальность
-        $sid = Json::encode($sidData);
-
-        return $sid;
-    }
-
-    /**
-     * @param $method
-     * @return AbstractGateway
-     */
-    abstract protected function getGatewayByPaymentMethod($method);
-
-    /**
-     * @param $name
-     * @return AbstractGateway
-     */
-    abstract protected function getGateway($name);
-
-    /**
-     * @param $invoice Invoice
-     * @return array
-     */
-    abstract protected function getInvoiceOrderPaymentDataSidData($invoice);
 
 }

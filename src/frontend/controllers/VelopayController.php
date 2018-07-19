@@ -80,10 +80,11 @@ class VelopayController extends Controller {
 
     /**
      * @param $order
+     * @param null $params
      * @return Invoice
      */
-    protected function createInvoiceByOrder($order) {
-        return $this->module->businessLogic->createInvoiceByOrder($order);
+    protected function createInvoiceByOrder($order, $params = null) {
+        return $this->module->businessLogic->createInvoiceByOrder($order, $params);
     }
 
     public function actionStart($method, $order_id) {
@@ -106,7 +107,8 @@ class VelopayController extends Controller {
 
         $gateway = $this->getGatewayByPaymentMethod($method);
 
-        $invoice = $this->createInvoiceByOrder($order);
+        $params = Yii::$app->request->get('params');
+        $invoice = $this->createInvoiceByOrder($order, $params);
         $invoice->gateway_sid = $this->getGatewaySid($gateway);
         $invoice->ensureSave();
         $invoice->refresh(); // иначе срабатывает optimistic lock при последующем сохранении в afterGatewayResponse()
@@ -127,7 +129,7 @@ class VelopayController extends Controller {
         try {
             $invoice = $this->getInvoiceById($invoiceId);
             if (!$invoice) {
-                throw new \Exception('no invoice');
+                throw new NotFoundHttpException('no invoice');
             }
         } catch (\Exception $e) {
             if (!YII_DEBUG) {

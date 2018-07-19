@@ -19,7 +19,7 @@ abstract class BusinessLogic extends BaseObject
     abstract public function getOrderRoute($order);
     abstract public function getGatewayByPaymentMethod($methodSid);
     abstract public function getGatewayBySid($gatewaySid);
-    abstract public function createInvoiceByOrder($order);
+    abstract public function createInvoiceByOrder($order, $params = null);
 
     /**
      * @param Invoice $invoice
